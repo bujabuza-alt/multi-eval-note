@@ -1,5 +1,13 @@
-const CACHE_NAME = 'multi-eval-note-v1';
-const STATIC_ASSETS = ['/', '/manifest.json', '/icon.svg'];
+const CACHE_NAME = 'multi-eval-note-v2';
+
+// Derive base path from service worker location (e.g. /multi-eval-note/sw.js → /multi-eval-note)
+const BASE_PATH = self.location.pathname.replace(/\/sw\.js$/, '');
+
+const STATIC_ASSETS = [
+  BASE_PATH + '/',
+  BASE_PATH + '/manifest.webmanifest',
+  BASE_PATH + '/icon.svg',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

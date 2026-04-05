@@ -13,7 +13,7 @@ export const metadata = {
 };
 
 export const viewport = {
-  themeColor: '#6366F1',
+  themeColor: '#1C1826',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -24,6 +24,7 @@ export default function RootLayout({ children }) {
     <html lang="ko">
       <head>
         <link rel="apple-touch-icon" href={`${basePath}/apple-touch-icon.png`} />
+        <link rel="icon" type="image/svg+xml" href={`${basePath}/icon.svg`} />
         <link rel="icon" type="image/png" sizes="192x192" href={`${basePath}/icon-192.png`} />
         <link rel="icon" type="image/png" sizes="512x512" href={`${basePath}/icon-512.png`} />
       </head>

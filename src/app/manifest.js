@@ -7,8 +7,8 @@ export default function manifest() {
     start_url: `${basePath}/`,
     scope: `${basePath}/`,
     display: 'standalone',
-    background_color: '#F8FAFC',
-    theme_color: '#6366F1',
+    background_color: '#1C1826',
+    theme_color: '#1C1826',
     orientation: 'portrait',
     icons: [
       {

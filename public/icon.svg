@@ -1,26 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="textGrad" gradientUnits="userSpaceOnUse" x1="40" y1="256" x2="480" y2="256">
-      <stop offset="0%" stop-color="#7A1A3A"/>
-      <stop offset="38%" stop-color="#5B2D9A"/>
+      <stop offset="0%" stop-color="#8B2FC9"/>
+      <stop offset="50%" stop-color="#A855F7"/>
       <stop offset="100%" stop-color="#FF6600"/>
     </linearGradient>
     <linearGradient id="arrowGrad" gradientUnits="userSpaceOnUse" x1="210" y1="230" x2="252" y2="90">
-      <stop offset="0%" stop-color="#5B2D9A"/>
-      <stop offset="100%" stop-color="#FF6600"/>
+      <stop offset="0%" stop-color="#A855F7"/>
+      <stop offset="100%" stop-color="#FF8800"/>
     </linearGradient>
   </defs>
-  <!-- Light background -->
-  <rect width="512" height="512" fill="#F0EFED"/>
+  <!-- Dark background (no rounded corners - iOS handles that) -->
+  <rect width="512" height="512" fill="#1C1826"/>
   <!-- "Boo" text with gradient -->
   <text x="40" y="335"
     font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
     font-size="230"
     font-weight="900"
     fill="url(#textGrad)">Boo</text>
-  <!-- Arrow pointing up-right, between B and first o -->
+  <!-- Arrow pointing up, between B and first o -->
   <g transform="translate(222, 205) rotate(15)">
     <rect x="-8" y="-88" width="16" height="95" rx="6" fill="url(#arrowGrad)"/>
-    <polygon points="0,-116 -20,-86 20,-86" fill="#FF6600"/>
+    <polygon points="0,-116 -20,-86 20,-86" fill="#FF8800"/>
   </g>
 </svg>
