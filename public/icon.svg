@@ -10,8 +10,6 @@
       <stop offset="100%" stop-color="#FF8800"/>
     </linearGradient>
   </defs>
-  <!-- Dark background -->
-  <rect width="512" height="512" fill="#1C1826" rx="80"/>
   <!-- "Boo" text with gradient -->
   <text x="40" y="335"
     font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
