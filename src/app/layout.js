@@ -3,7 +3,6 @@ import './globals.css';
 export const metadata = {
   title: '멀티 평가 노트',
   description: '좋아하는 모든 것을 기록하고 평가하는 노트',
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -31,7 +30,7 @@ export default function RootLayout({ children }) {
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js');
+                  navigator.serviceWorker.register('${process.env.NEXT_PUBLIC_BASE_PATH || ''}/sw.js');
                 });
               }
             `,
