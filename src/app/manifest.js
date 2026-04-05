@@ -21,6 +21,12 @@ export default function manifest() {
         src: `${basePath}/icon-512.png`,
         sizes: '512x512',
         type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: `${basePath}/icon-512.png`,
+        sizes: '512x512',
+        type: 'image/png',
         purpose: 'maskable',
       },
     ],
