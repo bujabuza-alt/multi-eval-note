@@ -1,5 +1,5 @@
-const CACHE_NAME = 'multi-eval-note-v1';
-const STATIC_ASSETS = ['/', '/manifest.json', '/icon.svg'];
+const CACHE_NAME = 'multi-eval-note-v2';
+const STATIC_ASSETS = ['/', '/manifest.json', '/icon.svg', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
