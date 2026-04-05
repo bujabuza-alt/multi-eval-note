@@ -2,7 +2,7 @@ name: GitHub Pages 배포
 
 on:
   push:
-    branches: [main, claude/multi-rating-notes-app-XuRPi]
+    branches: [main, claude/multi-rating-notes-app-XuRPi, claude/fix-icon-change-fn61Y]
   workflow_dispatch:
 
 permissions:
