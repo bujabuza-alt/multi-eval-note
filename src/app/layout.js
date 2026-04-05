@@ -1,5 +1,7 @@
 import './globals.css';
 
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+
 export const metadata = {
   title: '멀티 평가 노트',
   description: '좋아하는 모든 것을 기록하고 평가하는 노트',
@@ -21,9 +23,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="ko">
       <head>
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+        <link rel="apple-touch-icon" href={`${basePath}/apple-touch-icon.png`} />
+        <link rel="icon" type="image/png" sizes="192x192" href={`${basePath}/icon-192.png`} />
+        <link rel="icon" type="image/png" sizes="512x512" href={`${basePath}/icon-512.png`} />
       </head>
       <body>
         {children}
