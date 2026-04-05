@@ -12,10 +12,16 @@ export default function manifest() {
     orientation: 'portrait',
     icons: [
       {
-        src: `${basePath}/icon.svg`,
-        sizes: 'any',
-        type: 'image/svg+xml',
-        purpose: 'any maskable',
+        src: `${basePath}/icon-192.png`,
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: `${basePath}/icon-512.png`,
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
       },
     ],
   };
