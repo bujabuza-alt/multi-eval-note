@@ -1,58 +1,173 @@
 'use client';
+// ──────────────────────────────────────────────────────────────────────────────
+// components/AddEditModal.jsx
+// 노트 추가·편집 모달 컴포넌트.
+//
+// 주요 변경 사항:
+// ① 정적 CATEGORIES 대신 useGenres() 동적 장르 사용
+// ② '카테고리' → '장르' 레이블 변경
+// ③ 노트 데이터에 genre 필드 사용 (구버전 category 필드 하위 호환 유지)
+// ④ evalItems를 노트 자체에 저장 → 세부 평가 항목을 노트별로 추가·삭제·이름 수정 가능
+// ⑤ 라이브 프리뷰가 evalItems 변경에 즉시 반응하도록 수정
+// ⑥ UI 레이아웃 개선 (겹침 방지, 모바일 대응)
+// ──────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useMemo } from 'react';
-import { X, Tag, Plus, BarChart2, Hexagon } from 'lucide-react';
-import { CATEGORIES } from '@/lib/categories';
+import { X, Tag, Plus, BarChart2, Hexagon, Pencil, Trash2 } from 'lucide-react';
+import { useGenres } from '@/hooks/useGenres';
 import { StarRating } from './StarRating';
 import { ScoreVisualization } from './ScoreVisualization';
 
-const DEFAULT_FORM = {
+// 기본 폼 상태 (장르 ID 자리는 아래에서 동적으로 채움)
+const makeDefaultForm = (firstGenreId) => ({
   title: '',
-  category: 'restaurant',
+  genre: firstGenreId,   // ← 신규 필드 (구버전 category 대신)
   rating: 0,
   date: new Date().toISOString().split('T')[0],
   memo: '',
   tags: [],
   scores: {},
   vizType: 'radar',
-};
+  evalItems: null,       // null → 장르 기본값 사용, string[] → 노트별 커스텀
+});
 
+// ─── 세부 평가 항목 편집 행 ────────────────────────────────────────────────────
+function EvalItemRow({ item, index, onRename, onDelete, total, color }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(item);
+
+  // 외부에서 item이 바뀌면 내부 값도 업데이트
+  useEffect(() => { setVal(item); }, [item]);
+
+  const commit = () => {
+    const trimmed = val.trim();
+    if (trimmed && trimmed !== item) onRename(index, trimmed);
+    else setVal(item);
+    setEditing(false);
+  };
+
+  return (
+    <div className="flex items-center gap-2 group">
+      {editing ? (
+        <>
+          <input
+            autoFocus
+            value={val}
+            onChange={(e) => setVal(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit();
+              if (e.key === 'Escape') { setVal(item); setEditing(false); }
+            }}
+            className="flex-1 px-2 py-1 text-sm border border-indigo-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <button type="button" onClick={commit}
+            className="p-1 rounded-md bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors text-xs font-medium px-2">
+            확인
+          </button>
+        </>
+      ) : (
+        <>
+          <span
+            onClick={() => setEditing(true)}
+            className="flex-1 text-xs text-slate-600 text-right w-14 shrink-0 cursor-pointer hover:text-indigo-600 transition-colors truncate"
+            title={`클릭하여 '${item}' 이름 수정`}
+          >
+            {item}
+          </span>
+        </>
+      )}
+
+      {!editing && (
+        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <button type="button" onClick={() => setEditing(true)}
+            className="p-1 rounded-md hover:bg-slate-100 text-slate-300 hover:text-slate-600 transition-colors"
+            aria-label="이름 수정">
+            <Pencil className="w-3 h-3" />
+          </button>
+          <button type="button" onClick={() => onDelete(index)} disabled={total <= 1}
+            className="p-1 rounded-md hover:bg-rose-50 text-slate-300 hover:text-rose-500 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+            aria-label="항목 삭제">
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── 메인 모달 ────────────────────────────────────────────────────────────────
 export function AddEditModal({ note, onSave, onClose }) {
-  const [form, setForm] = useState(DEFAULT_FORM);
-  const [tagInput, setTagInput] = useState('');
+  const { genres, getGenreById } = useGenres();
 
+  // 첫 번째 장르 ID (동적)
+  const firstGenreId = genres[0]?.id || 'other';
+
+  const [form, setForm] = useState(makeDefaultForm(firstGenreId));
+  const [tagInput, setTagInput] = useState('');
+  const [newItemInput, setNewItemInput] = useState(''); // 세부 평가 항목 추가 입력
+  const [showItemEdit, setShowItemEdit] = useState(false); // 항목 편집 패널 토글
+
+  // note prop이 바뀔 때 폼 초기화
   useEffect(() => {
     if (note) {
+      // 구버전 노트는 category, 신버전은 genre 필드 사용
+      const genreId = note.genre || note.category || firstGenreId;
+      const genre = getGenreById(genreId);
       setForm({
         title: note.title || '',
-        category: note.category || 'restaurant',
+        genre: genreId,
         rating: note.rating || 0,
         date: note.date || new Date().toISOString().split('T')[0],
         memo: note.memo || '',
         tags: note.tags || [],
         scores: note.scores || {},
         vizType: note.vizType || 'radar',
+        // evalItems: 노트에 저장된 항목이 있으면 사용, 없으면 장르 기본값
+        evalItems: note.evalItems || [...(genre.defaultItems || [])],
       });
     } else {
-      setForm({ ...DEFAULT_FORM, date: new Date().toISOString().split('T')[0] });
+      const defaultGenre = getGenreById(firstGenreId);
+      setForm({
+        ...makeDefaultForm(firstGenreId),
+        date: new Date().toISOString().split('T')[0],
+        evalItems: [...(defaultGenre.defaultItems || [])],
+      });
     }
     setTagInput('');
-  }, [note]);
+    setNewItemInput('');
+    setShowItemEdit(false);
+  }, [note, firstGenreId]);
 
+  // 폼 값 업데이트 헬퍼
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
-  // Current category object and its evaluation items
-  const currentCat = useMemo(
-    () => CATEGORIES.find((c) => c.id === form.category) || CATEGORIES[0],
-    [form.category]
+  // 현재 선택된 장르 객체
+  const currentGenre = useMemo(
+    () => getGenreById(form.genre),
+    [form.genre, getGenreById]
   );
-  const evalItems = currentCat.defaultItems;
 
-  // When category changes, keep existing scores for matching items
-  const handleCategoryChange = (catId) => {
-    set('category', catId);
+  // 현재 유효한 evalItems (폼에 있는 값 우선, 없으면 장르 기본값)
+  const evalItems = useMemo(
+    () => form.evalItems || currentGenre.defaultItems || [],
+    [form.evalItems, currentGenre.defaultItems]
+  );
+
+  // 장르 변경 시: 새 장르의 기본 evalItems를 폼에 적용
+  const handleGenreChange = (genreId) => {
+    const newGenre = getGenreById(genreId);
+    set('genre', genreId);
+    // 장르가 바뀌면 새 장르의 defaultItems를 초기값으로 설정
+    // (기존에 입력한 점수도 초기화하여 혼선 방지)
+    setForm((f) => ({
+      ...f,
+      genre: genreId,
+      evalItems: [...(newGenre.defaultItems || [])],
+      scores: {}, // 항목이 달라지면 점수도 초기화
+    }));
   };
 
-  // Average score for current category items
+  // 세부 평가 평균 점수
   const avgScore = useMemo(() => {
     const values = evalItems.map((item) => form.scores?.[item] ?? 0);
     const filled = values.filter((v) => v > 0);
@@ -64,6 +179,7 @@ export function AddEditModal({ note, onSave, onClose }) {
     set('scores', { ...form.scores, [item]: Number(value) });
   };
 
+  // ─── 태그 관리 ────────────────────────────────────────────────────────────
   const addTag = () => {
     const t = tagInput.trim().replace(/^#/, '');
     if (t && !form.tags.includes(t)) {
@@ -81,10 +197,41 @@ export function AddEditModal({ note, onSave, onClose }) {
     }
   };
 
+  // ─── 세부 평가 항목 관리 ──────────────────────────────────────────────────
+  const handleAddEvalItem = () => {
+    const trimmed = newItemInput.trim();
+    if (!trimmed || evalItems.includes(trimmed)) return;
+    set('evalItems', [...evalItems, trimmed]);
+    setNewItemInput('');
+  };
+
+  const handleRenameEvalItem = (index, newName) => {
+    const updated = evalItems.map((it, i) => (i === index ? newName : it));
+    // 이름이 바뀐 항목의 점수도 이전 이름에서 새 이름으로 이전
+    const oldName = evalItems[index];
+    const oldScore = form.scores?.[oldName];
+    const newScores = { ...form.scores };
+    if (oldScore !== undefined) {
+      delete newScores[oldName];
+      newScores[newName] = oldScore;
+    }
+    setForm((f) => ({ ...f, evalItems: updated, scores: newScores }));
+  };
+
+  const handleDeleteEvalItem = (index) => {
+    const removed = evalItems[index];
+    const updated = evalItems.filter((_, i) => i !== index);
+    const newScores = { ...form.scores };
+    delete newScores[removed]; // 삭제된 항목의 점수도 제거
+    setForm((f) => ({ ...f, evalItems: updated, scores: newScores }));
+  };
+
+  // ─── 제출 ─────────────────────────────────────────────────────────────────
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!form.title.trim()) return;
-    onSave(form);
+    // genre 필드와 하위 호환을 위한 category 필드 모두 저장
+    onSave({ ...form, category: form.genre });
     onClose();
   };
 
@@ -95,13 +242,13 @@ export function AddEditModal({ note, onSave, onClose }) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      {/* Backdrop */}
+      {/* 백드롭 */}
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal */}
+      {/* 모달 패널 */}
       <div className="relative w-full sm:max-w-lg bg-white sm:rounded-2xl rounded-t-2xl shadow-2xl overflow-hidden max-h-[95dvh] flex flex-col">
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        {/* 모달 헤더 */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
           <h2 className="text-lg font-bold text-slate-800">
             {isEdit ? '노트 수정' : '새 노트 추가'}
           </h2>
@@ -113,9 +260,10 @@ export function AddEditModal({ note, onSave, onClose }) {
           </button>
         </div>
 
-        {/* Scrollable Form */}
+        {/* 스크롤 가능한 폼 */}
         <form onSubmit={handleSubmit} className="overflow-y-auto flex flex-col gap-5 p-6">
-          {/* Title */}
+
+          {/* ── 제목 ────────────────────────────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">
               이름 <span className="text-rose-500">*</span>
@@ -130,32 +278,32 @@ export function AddEditModal({ note, onSave, onClose }) {
             />
           </div>
 
-          {/* Category */}
+          {/* ── 장르 선택 (구 '카테고리') ─────────────────────────────── */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1.5">카테고리</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">장르</label>
             <div className="grid grid-cols-4 gap-2">
-              {CATEGORIES.map((cat) => {
-                const isSelected = form.category === cat.id;
+              {genres.map((genre) => {
+                const isSelected = form.genre === genre.id;
                 return (
                   <button
-                    key={cat.id}
+                    key={genre.id}
                     type="button"
-                    onClick={() => handleCategoryChange(cat.id)}
+                    onClick={() => handleGenreChange(genre.id)}
                     className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border-2 text-xs font-medium transition-all duration-150 ${
                       isSelected
-                        ? `${cat.activeBg} ${cat.activeText} ${cat.activeBorder} shadow-md scale-[1.04]`
-                        : `bg-white text-slate-500 border-slate-200 ${cat.hoverBg} ${cat.hoverBorder} hover:text-slate-700 hover:scale-[1.02]`
+                        ? `${genre.activeBg} ${genre.activeText} ${genre.activeBorder} shadow-md scale-[1.04]`
+                        : `bg-white text-slate-500 border-slate-200 ${genre.hoverBg} ${genre.hoverBorder} hover:text-slate-700 hover:scale-[1.02]`
                     }`}
                   >
-                    <span className="text-xl">{cat.emoji}</span>
-                    {cat.label}
+                    <span className="text-xl leading-none">{genre.emoji}</span>
+                    <span className="truncate w-full text-center">{genre.label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Overall Rating */}
+          {/* ── 종합 평점 ───────────────────────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
               종합 평점
@@ -166,24 +314,38 @@ export function AddEditModal({ note, onSave, onClose }) {
             <StarRating value={form.rating} onChange={(v) => set('rating', v)} size="lg" />
           </div>
 
-          {/* Detailed Evaluation */}
+          {/* ── 세부 평가 ───────────────────────────────────────────────── */}
           <div>
-            {/* Section header */}
-            <div className="flex items-center justify-between mb-3">
-              <label className="text-sm font-medium text-slate-700">
-                세부 평가
+            {/* 섹션 헤더: 평균 + 차트 타입 토글 */}
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <label className="text-sm font-medium text-slate-700">세부 평가</label>
                 {avgScore !== null && (
                   <span
-                    className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: currentCat.chartColor + '22', color: currentCat.chartColor }}
+                    className="text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: currentGenre.chartColor + '22', color: currentGenre.chartColor }}
                   >
                     평균 {avgScore} / 10
                   </span>
                 )}
-              </label>
+                {/* 세부 항목 편집 토글 버튼 */}
+                <button
+                  type="button"
+                  onClick={() => setShowItemEdit((v) => !v)}
+                  className={`flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                    showItemEdit
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                      : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                  }`}
+                  title="세부 평가 항목 편집"
+                >
+                  <Pencil className="w-3 h-3" />
+                  항목 편집
+                </button>
+              </div>
 
-              {/* vizType toggle */}
-              <div className="flex gap-1 p-0.5 bg-slate-100 rounded-lg">
+              {/* 차트 타입 토글 */}
+              <div className="flex gap-1 p-0.5 bg-slate-100 rounded-lg shrink-0">
                 <button
                   type="button"
                   onClick={() => set('vizType', 'radar')}
@@ -213,14 +375,55 @@ export function AddEditModal({ note, onSave, onClose }) {
               </div>
             </div>
 
-            {/* Live preview */}
+            {/* 항목 편집 패널 (토글) */}
+            {showItemEdit && (
+              <div className="mb-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <p className="text-xs text-slate-500 mb-2 font-medium">
+                  세부 평가 항목 편집 — 항목 이름을 클릭해 수정하세요
+                </p>
+                <div className="flex flex-col gap-1.5 mb-3">
+                  {evalItems.map((item, i) => (
+                    <EvalItemRow
+                      key={`${item}-${i}`}
+                      item={item}
+                      index={i}
+                      onRename={handleRenameEvalItem}
+                      onDelete={handleDeleteEvalItem}
+                      total={evalItems.length}
+                      color={currentGenre.chartColor}
+                    />
+                  ))}
+                </div>
+                {/* 새 항목 추가 */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newItemInput}
+                    onChange={(e) => setNewItemInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddEvalItem(); } }}
+                    placeholder="새 항목 이름..."
+                    className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddEvalItem}
+                    className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    추가
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 라이브 프리뷰 (평균 점수가 있을 때만 표시) */}
             {avgScore !== null && (
               <div className="mb-4 p-3 bg-slate-50 rounded-xl flex justify-center">
                 <ScoreVisualization
                   items={evalItems}
                   scores={form.scores}
                   vizType={form.vizType}
-                  color={currentCat.chartColor}
+                  color={currentGenre.chartColor}
                   size={160}
                   compact={false}
                   showAvg={false}
@@ -228,13 +431,17 @@ export function AddEditModal({ note, onSave, onClose }) {
               </div>
             )}
 
-            {/* Score sliders */}
+            {/* 점수 슬라이더 */}
             <div className="flex flex-col gap-3">
               {evalItems.map((item) => {
                 const score = form.scores?.[item] ?? 0;
                 return (
                   <div key={item} className="flex items-center gap-3">
-                    <span className="text-xs text-slate-600 w-12 shrink-0 text-right">{item}</span>
+                    {/* 항목 이름 (고정 너비) */}
+                    <span className="text-xs text-slate-600 w-14 shrink-0 text-right truncate" title={item}>
+                      {item}
+                    </span>
+                    {/* 슬라이더 */}
                     <input
                       type="range"
                       min="0"
@@ -243,11 +450,12 @@ export function AddEditModal({ note, onSave, onClose }) {
                       value={score}
                       onChange={(e) => setScore(item, e.target.value)}
                       className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
-                      style={{ accentColor: currentCat.chartColor }}
+                      style={{ accentColor: currentGenre.chartColor }}
                     />
+                    {/* 점수 표시 */}
                     <span
-                      className="text-sm font-bold w-6 text-right tabular-nums"
-                      style={{ color: score > 0 ? currentCat.chartColor : '#94a3b8' }}
+                      className="text-sm font-bold w-6 text-right tabular-nums shrink-0"
+                      style={{ color: score > 0 ? currentGenre.chartColor : '#94a3b8' }}
                     >
                       {score}
                     </span>
@@ -257,7 +465,7 @@ export function AddEditModal({ note, onSave, onClose }) {
             </div>
           </div>
 
-          {/* Date */}
+          {/* ── 날짜 ────────────────────────────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">날짜</label>
             <input
@@ -268,7 +476,7 @@ export function AddEditModal({ note, onSave, onClose }) {
             />
           </div>
 
-          {/* Memo */}
+          {/* ── 메모 ────────────────────────────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">메모</label>
             <textarea
@@ -280,7 +488,7 @@ export function AddEditModal({ note, onSave, onClose }) {
             />
           </div>
 
-          {/* Tags */}
+          {/* ── 태그 ────────────────────────────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">태그</label>
             <div className="flex gap-2">
@@ -292,17 +500,18 @@ export function AddEditModal({ note, onSave, onClose }) {
                   onChange={(e) => setTagInput(e.target.value)}
                   onKeyDown={handleTagKeyDown}
                   placeholder="태그 입력 후 Enter"
-                  className="flex-1 focus:outline-none text-sm text-slate-800 placeholder:text-slate-400"
+                  className="flex-1 focus:outline-none text-sm text-slate-800 placeholder:text-slate-400 min-w-0"
                 />
               </div>
               <button
                 type="button"
                 onClick={addTag}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors"
+                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-slate-600 transition-colors shrink-0"
               >
                 <Plus className="w-4 h-4" />
               </button>
             </div>
+            {/* 태그 목록: 추가·삭제 시 즉시 갱신 */}
             {form.tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mt-2">
                 {form.tags.map((tag) => (
@@ -314,7 +523,8 @@ export function AddEditModal({ note, onSave, onClose }) {
                     <button
                       type="button"
                       onClick={() => removeTag(tag)}
-                      className="hover:text-indigo-900"
+                      className="hover:text-indigo-900 transition-colors"
+                      aria-label={`태그 ${tag} 제거`}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -324,8 +534,8 @@ export function AddEditModal({ note, onSave, onClose }) {
             )}
           </div>
 
-          {/* Actions */}
-          <div className="flex gap-3 pt-2">
+          {/* ── 저장·취소 버튼 ──────────────────────────────────────────── */}
+          <div className="flex gap-3 pt-2 pb-1">
             <button
               type="button"
               onClick={onClose}
