@@ -1,8 +1,7 @@
 'use client';
-import { CATEGORIES } from '@/lib/categories';
 
-export function CategoryFilter({ selected, onSelect, counts }) {
-  const all = [{ id: 'all', label: '전체', emoji: '📋' }, ...CATEGORIES];
+export function CategoryFilter({ selected, onSelect, counts, categories = [] }) {
+  const all = [{ id: 'all', label: '전체', emoji: '📋' }, ...categories];
 
   return (
     <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
@@ -25,13 +24,9 @@ export function CategoryFilter({ selected, onSelect, counts }) {
             <span>{cat.emoji}</span>
             {cat.label}
             {count > 0 && (
-              <span
-                className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
-                  active
-                    ? 'bg-white/25 text-white'
-                    : 'bg-indigo-50 text-indigo-500 group-hover:bg-indigo-100'
-                }`}
-              >
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${
+                active ? 'bg-white/25 text-white' : 'bg-indigo-50 text-indigo-500'
+              }`}>
                 {count}
               </span>
             )}

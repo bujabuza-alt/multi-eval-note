@@ -1,37 +1,45 @@
 'use client';
-import { useState, useMemo } from 'react';
-import { Plus, Search, SlidersHorizontal, Star, BookOpen } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Plus, Search, SlidersHorizontal, Star, BookOpen, Settings } from 'lucide-react';
 import { useNotes } from '@/hooks/useNotes';
+import { useCategories } from '@/hooks/useCategories';
 import { NoteCard } from '@/components/NoteCard';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { AddEditModal } from '@/components/AddEditModal';
+import { SettingsModal } from '@/components/SettingsModal';
 import { EmptyState } from '@/components/EmptyState';
-import { CATEGORIES } from '@/lib/categories';
 
 const SORT_OPTIONS = [
-  { value: 'newest', label: '최신순' },
-  { value: 'oldest', label: '오래된순' },
+  { value: 'newest',      label: '최신순' },
+  { value: 'oldest',      label: '오래된순' },
   { value: 'rating_desc', label: '평점 높은순' },
-  { value: 'rating_asc', label: '평점 낮은순' },
-  { value: 'title', label: '이름순' },
+  { value: 'rating_asc',  label: '평점 낮은순' },
+  { value: 'title',       label: '이름순' },
 ];
 
 export default function HomePage() {
-  const { notes, loaded, addNote, updateNote, deleteNote } = useNotes();
+  const { notes, loaded: notesLoaded, addNote, updateNote, deleteNote, replaceAllNotes } = useNotes();
+  const {
+    categories, loaded: catsLoaded,
+    addCategory, updateCategory, deleteCategory, getCategoryById,
+    tagLibrary, addTagToLibrary, removeTagFromLibrary,
+  } = useCategories();
+
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sort, setSort] = useState('newest');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState(null);
-  const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [showSort, setShowSort] = useState(false);
+  const [searchQuery, setSearchQuery]           = useState('');
+  const [sort, setSort]                         = useState('newest');
+  const [modalOpen, setModalOpen]               = useState(false);
+  const [editingNote, setEditingNote]           = useState(null);
+  const [deleteConfirm, setDeleteConfirm]       = useState(null);
+  const [showSort, setShowSort]                 = useState(false);
+  const [settingsOpen, setSettingsOpen]         = useState(false);
 
   const categoryCounts = useMemo(() => {
     const counts = {};
-    CATEGORIES.forEach((c) => { counts[c.id] = 0; });
+    categories.forEach((c) => { counts[c.id] = 0; });
     notes.forEach((n) => { if (counts[n.category] !== undefined) counts[n.category]++; });
     return counts;
-  }, [notes]);
+  }, [notes, categories]);
 
   const filteredNotes = useMemo(() => {
     let result = [...notes];
@@ -52,44 +60,33 @@ export default function HomePage() {
 
     result.sort((a, b) => {
       switch (sort) {
-        case 'newest': return new Date(b.createdAt) - new Date(a.createdAt);
-        case 'oldest': return new Date(a.createdAt) - new Date(b.createdAt);
+        case 'newest':      return new Date(b.createdAt) - new Date(a.createdAt);
+        case 'oldest':      return new Date(a.createdAt) - new Date(b.createdAt);
         case 'rating_desc': return (b.rating || 0) - (a.rating || 0);
-        case 'rating_asc': return (a.rating || 0) - (b.rating || 0);
-        case 'title': return a.title.localeCompare(b.title, 'ko');
-        default: return 0;
+        case 'rating_asc':  return (a.rating || 0) - (b.rating || 0);
+        case 'title':       return a.title.localeCompare(b.title, 'ko');
+        default:            return 0;
       }
     });
 
     return result;
   }, [notes, selectedCategory, searchQuery, sort]);
 
-  const handleOpenAdd = () => {
-    setEditingNote(null);
-    setModalOpen(true);
-  };
-
-  const handleEdit = (note) => {
-    setEditingNote(note);
-    setModalOpen(true);
-  };
+  const handleOpenAdd = () => { setEditingNote(null); setModalOpen(true); };
+  const handleEdit    = (note) => { setEditingNote(note); setModalOpen(true); };
 
   const handleSave = (data) => {
-    if (editingNote?.id) {
-      updateNote(editingNote.id, data);
-    } else {
-      addNote(data);
-    }
+    if (editingNote?.id) updateNote(editingNote.id, data);
+    else addNote(data);
   };
 
-  const handleDelete = (id) => setDeleteConfirm(id);
+  const handleDelete      = (id) => setDeleteConfirm(id);
+  const confirmDelete     = () => { if (deleteConfirm) { deleteNote(deleteConfirm); setDeleteConfirm(null); } };
 
-  const confirmDelete = () => {
-    if (deleteConfirm) {
-      deleteNote(deleteConfirm);
-      setDeleteConfirm(null);
-    }
-  };
+  // Bulk-update all notes (used by tag rename/delete in settings)
+  const handleUpdateAllNotes = useCallback((updatedNotes) => {
+    replaceAllNotes(updatedNotes);
+  }, [replaceAllNotes]);
 
   const avgRating = useMemo(() => {
     const rated = notes.filter((n) => n.rating > 0);
@@ -97,7 +94,7 @@ export default function HomePage() {
     return (rated.reduce((s, n) => s + n.rating, 0) / rated.length).toFixed(1);
   }, [notes]);
 
-  if (!loaded) {
+  if (!notesLoaded || !catsLoaded) {
     return (
       <div className="flex items-center justify-center min-h-dvh">
         <div className="w-8 h-8 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
@@ -122,16 +119,29 @@ export default function HomePage() {
                 </p>
               )}
             </div>
-            <button
-              onClick={handleOpenAdd}
-              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 transition-colors shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              추가
-            </button>
+
+            <div className="flex items-center gap-2">
+              {/* Settings */}
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-700 transition-colors"
+                aria-label="설정"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+
+              {/* Add */}
+              <button
+                onClick={handleOpenAdd}
+                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium text-sm hover:bg-indigo-700 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" />
+                추가
+              </button>
+            </div>
           </div>
 
-          {/* Search */}
+          {/* Search + Sort */}
           <div className="flex gap-2">
             <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-xl">
               <Search className="w-4 h-4 text-slate-400 shrink-0" />
@@ -175,12 +185,13 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Category Filter */}
+        {/* Category / Genre Filter */}
         <div className="max-w-3xl mx-auto px-4 pb-3">
           <CategoryFilter
             selected={selectedCategory}
             onSelect={setSelectedCategory}
             counts={categoryCounts}
+            categories={categories}
           />
         </div>
       </header>
@@ -195,6 +206,7 @@ export default function HomePage() {
               <NoteCard
                 key={note.id}
                 note={note}
+                categories={categories}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
               />
@@ -216,8 +228,26 @@ export default function HomePage() {
       {modalOpen && (
         <AddEditModal
           note={editingNote}
+          categories={categories}
+          tagLibrary={tagLibrary}
           onSave={handleSave}
           onClose={() => { setModalOpen(false); setEditingNote(null); }}
+        />
+      )}
+
+      {/* Settings Modal */}
+      {settingsOpen && (
+        <SettingsModal
+          categories={categories}
+          notes={notes}
+          tagLibrary={tagLibrary}
+          onAddCategory={addCategory}
+          onUpdateCategory={updateCategory}
+          onDeleteCategory={deleteCategory}
+          onAddTag={addTagToLibrary}
+          onRemoveTag={removeTagFromLibrary}
+          onUpdateNotes={handleUpdateAllNotes}
+          onClose={() => setSettingsOpen(false)}
         />
       )}
 
@@ -232,18 +262,8 @@ export default function HomePage() {
             <h3 className="text-lg font-bold text-slate-800 mb-2">노트 삭제</h3>
             <p className="text-sm text-slate-500 mb-6">이 노트를 삭제할까요? 되돌릴 수 없어요.</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
-              >
-                취소
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 py-2.5 rounded-xl bg-rose-500 text-white font-medium hover:bg-rose-600 transition-colors"
-              >
-                삭제
-              </button>
+              <button onClick={() => setDeleteConfirm(null)} className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors">취소</button>
+              <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl bg-rose-500 text-white font-medium hover:bg-rose-600 transition-colors">삭제</button>
             </div>
           </div>
         </div>

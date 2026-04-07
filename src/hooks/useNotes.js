@@ -58,5 +58,11 @@ export function useNotes() {
     [notes, persist]
   );
 
-  return { notes, loaded, addNote, updateNote, deleteNote };
+  // Replace the entire notes array (used for bulk tag rename/delete)
+  const replaceAllNotes = useCallback(
+    (nextNotes) => persist(nextNotes),
+    [persist]
+  );
+
+  return { notes, loaded, addNote, updateNote, deleteNote, replaceAllNotes };
 }
