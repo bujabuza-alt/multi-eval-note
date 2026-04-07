@@ -1,6 +1,7 @@
 'use client';
 import { Pencil, Trash2 } from 'lucide-react';
 import { StarRating } from './StarRating';
+import { ScoreVisualization } from './ScoreVisualization';
 import { getCategoryById } from '@/lib/categories';
 
 function formatDate(dateStr) {
@@ -11,6 +12,11 @@ function formatDate(dateStr) {
 
 export function NoteCard({ note, onEdit, onDelete }) {
   const cat = getCategoryById(note.category);
+
+  // Determine if there are any non-zero scores for this note's category items
+  const evalItems = cat.defaultItems;
+  const hasScores =
+    note.scores && evalItems.some((item) => (note.scores[item] ?? 0) > 0);
 
   return (
     <div className="group bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-200 p-5 flex flex-col gap-3 border border-slate-100">
@@ -48,8 +54,23 @@ export function NoteCard({ note, onEdit, onDelete }) {
         {note.title}
       </h3>
 
-      {/* Rating */}
-      <StarRating value={note.rating} readonly size="sm" />
+      {/* Overall star rating */}
+      {note.rating > 0 && <StarRating value={note.rating} readonly size="sm" />}
+
+      {/* Score visualization (compact) */}
+      {hasScores && (
+        <div className="pt-1">
+          <ScoreVisualization
+            items={evalItems}
+            scores={note.scores}
+            vizType={note.vizType || 'radar'}
+            color={cat.chartColor}
+            size={140}
+            compact={true}
+            showAvg={true}
+          />
+        </div>
+      )}
 
       {/* Memo */}
       {note.memo && (

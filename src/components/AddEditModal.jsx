@@ -1,8 +1,9 @@
 'use client';
-import { useState, useEffect } from 'react';
-import { X, Tag, Plus } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { X, Tag, Plus, BarChart2, Hexagon } from 'lucide-react';
 import { CATEGORIES } from '@/lib/categories';
 import { StarRating } from './StarRating';
+import { ScoreVisualization } from './ScoreVisualization';
 
 const DEFAULT_FORM = {
   title: '',
@@ -11,6 +12,8 @@ const DEFAULT_FORM = {
   date: new Date().toISOString().split('T')[0],
   memo: '',
   tags: [],
+  scores: {},
+  vizType: 'radar',
 };
 
 export function AddEditModal({ note, onSave, onClose }) {
@@ -26,14 +29,40 @@ export function AddEditModal({ note, onSave, onClose }) {
         date: note.date || new Date().toISOString().split('T')[0],
         memo: note.memo || '',
         tags: note.tags || [],
+        scores: note.scores || {},
+        vizType: note.vizType || 'radar',
       });
     } else {
-      setForm(DEFAULT_FORM);
+      setForm({ ...DEFAULT_FORM, date: new Date().toISOString().split('T')[0] });
     }
     setTagInput('');
   }, [note]);
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }));
+
+  // Current category object and its evaluation items
+  const currentCat = useMemo(
+    () => CATEGORIES.find((c) => c.id === form.category) || CATEGORIES[0],
+    [form.category]
+  );
+  const evalItems = currentCat.defaultItems;
+
+  // When category changes, keep existing scores for matching items
+  const handleCategoryChange = (catId) => {
+    set('category', catId);
+  };
+
+  // Average score for current category items
+  const avgScore = useMemo(() => {
+    const values = evalItems.map((item) => form.scores?.[item] ?? 0);
+    const filled = values.filter((v) => v > 0);
+    if (!filled.length) return null;
+    return (values.reduce((s, v) => s + v, 0) / values.length).toFixed(1);
+  }, [evalItems, form.scores]);
+
+  const setScore = (item, value) => {
+    set('scores', { ...form.scores, [item]: Number(value) });
+  };
 
   const addTag = () => {
     const t = tagInput.trim().replace(/^#/, '');
@@ -105,33 +134,127 @@ export function AddEditModal({ note, onSave, onClose }) {
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">카테고리</label>
             <div className="grid grid-cols-4 gap-2">
-              {CATEGORIES.map((cat) => (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => set('category', cat.id)}
-                  className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border text-xs font-medium transition-all ${
-                    form.category === cat.id
-                      ? `${cat.bg} ${cat.text} ${cat.border} border-2`
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="text-lg">{cat.emoji}</span>
-                  {cat.label}
-                </button>
-              ))}
+              {CATEGORIES.map((cat) => {
+                const isSelected = form.category === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => handleCategoryChange(cat.id)}
+                    className={`flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border-2 text-xs font-medium transition-all duration-150 ${
+                      isSelected
+                        ? `${cat.activeBg} ${cat.activeText} ${cat.activeBorder} shadow-md scale-[1.04]`
+                        : `bg-white text-slate-500 border-slate-200 ${cat.hoverBg} ${cat.hoverBorder} hover:text-slate-700 hover:scale-[1.02]`
+                    }`}
+                  >
+                    <span className="text-xl">{cat.emoji}</span>
+                    {cat.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          {/* Rating */}
+          {/* Overall Rating */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              평점
+              종합 평점
               {form.rating > 0 && (
                 <span className="ml-2 text-amber-500 font-semibold">{form.rating}점</span>
               )}
             </label>
             <StarRating value={form.rating} onChange={(v) => set('rating', v)} size="lg" />
+          </div>
+
+          {/* Detailed Evaluation */}
+          <div>
+            {/* Section header */}
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium text-slate-700">
+                세부 평가
+                {avgScore !== null && (
+                  <span
+                    className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={{ backgroundColor: currentCat.chartColor + '22', color: currentCat.chartColor }}
+                  >
+                    평균 {avgScore} / 10
+                  </span>
+                )}
+              </label>
+
+              {/* vizType toggle */}
+              <div className="flex gap-1 p-0.5 bg-slate-100 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => set('vizType', 'radar')}
+                  title="레이더 차트"
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium transition-all duration-150 ${
+                    form.vizType === 'radar'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <Hexagon className="w-3.5 h-3.5" />
+                  레이더
+                </button>
+                <button
+                  type="button"
+                  onClick={() => set('vizType', 'bars')}
+                  title="막대 그래프"
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-md font-medium transition-all duration-150 ${
+                    form.vizType === 'bars'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  <BarChart2 className="w-3.5 h-3.5" />
+                  막대
+                </button>
+              </div>
+            </div>
+
+            {/* Live preview */}
+            {avgScore !== null && (
+              <div className="mb-4 p-3 bg-slate-50 rounded-xl flex justify-center">
+                <ScoreVisualization
+                  items={evalItems}
+                  scores={form.scores}
+                  vizType={form.vizType}
+                  color={currentCat.chartColor}
+                  size={160}
+                  compact={false}
+                  showAvg={false}
+                />
+              </div>
+            )}
+
+            {/* Score sliders */}
+            <div className="flex flex-col gap-3">
+              {evalItems.map((item) => {
+                const score = form.scores?.[item] ?? 0;
+                return (
+                  <div key={item} className="flex items-center gap-3">
+                    <span className="text-xs text-slate-600 w-12 shrink-0 text-right">{item}</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="10"
+                      step="1"
+                      value={score}
+                      onChange={(e) => setScore(item, e.target.value)}
+                      className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
+                      style={{ accentColor: currentCat.chartColor }}
+                    />
+                    <span
+                      className="text-sm font-bold w-6 text-right tabular-nums"
+                      style={{ color: score > 0 ? currentCat.chartColor : '#94a3b8' }}
+                    >
+                      {score}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Date */}
