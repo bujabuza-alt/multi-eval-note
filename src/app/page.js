@@ -2,19 +2,28 @@
 // ──────────────────────────────────────────────────────────────────────────────
 // app/page.js
 // 메인 페이지 컴포넌트.
-// ① GenresProvider로 동적 장르 Context 제공
-// ② '카테고리' → '장르'로 명칭 변경
-// ③ 헤더에 장르 관리(⚙️) 버튼 추가 → GenreManager 모달 오픈
-// ④ 카운트·필터링을 동적 genres로 계산
+//
+// 변경 사항:
+// ① 뷰 모드 전환: 카드 그리드 / 타임라인 / 명예의 전당 / 추천
+// ② 데이터 내보내기(CSV/JSON) 버튼 추가
+// ③ 모든 뷰에 동일한 필터/검색 적용
 // ──────────────────────────────────────────────────────────────────────────────
 import { useState, useMemo } from 'react';
-import { Plus, Search, SlidersHorizontal, Star, BookOpen, Settings2 } from 'lucide-react';
+import {
+  Plus, Search, SlidersHorizontal, Star, BookOpen,
+  Settings2, LayoutGrid, Clock, Crown, Sparkles,
+  Download, FileJson, FileText,
+} from 'lucide-react';
 import { useNotes } from '@/hooks/useNotes';
+import { useExport } from '@/hooks/useExport';
 import { NoteCard } from '@/components/NoteCard';
 import { CategoryFilter } from '@/components/CategoryFilter';
 import { AddEditModal } from '@/components/AddEditModal';
 import { EmptyState } from '@/components/EmptyState';
 import { GenreManager } from '@/components/GenreManager';
+import { TimelineView } from '@/components/TimelineView';
+import { HallOfFame } from '@/components/HallOfFame';
+import { Recommendations } from '@/components/Recommendations';
 import { GenresProvider, useGenres } from '@/hooks/useGenres';
 
 const SORT_OPTIONS = [
@@ -25,28 +34,35 @@ const SORT_OPTIONS = [
   { value: 'title', label: '이름순' },
 ];
 
+const VIEW_MODES = [
+  { id: 'grid', label: '카드', icon: LayoutGrid },
+  { id: 'timeline', label: '타임라인', icon: Clock },
+  { id: 'hall', label: '명예의 전당', icon: Crown },
+  { id: 'recs', label: '추천', icon: Sparkles },
+];
+
 // ─── 실제 페이지 내용 (GenresProvider 안에서 useGenres 사용) ────────────────────
 function HomeContent() {
   const { notes, loaded, addNote, updateNote, deleteNote } = useNotes();
-  // 동적 장르 목록 사용 (기존 CATEGORIES 대신)
   const { genres } = useGenres();
+  const { exportJSON, exportCSV } = useExport(notes);
 
-  const [selectedGenre, setSelectedGenre] = useState('all'); // '카테고리' → '장르'
+  const [selectedGenre, setSelectedGenre] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sort, setSort] = useState('newest');
+  const [viewMode, setViewMode] = useState('grid');
   const [modalOpen, setModalOpen] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
   const [showSort, setShowSort] = useState(false);
-  const [genreManagerOpen, setGenreManagerOpen] = useState(false); // 장르 관리 모달
+  const [showExport, setShowExport] = useState(false);
+  const [genreManagerOpen, setGenreManagerOpen] = useState(false);
 
-  // 각 장르별 노트 개수 계산 (동적 genres 기반)
   const genreCounts = useMemo(() => {
     const counts = {};
     genres.forEach((g) => { counts[g.id] = 0; });
     notes.forEach((n) => {
       if (counts[n.genre] !== undefined) counts[n.genre]++;
-      // 구버전 데이터에서 category 필드를 사용하는 경우 대비
       else if (counts[n.category] !== undefined) counts[n.category]++;
     });
     return counts;
@@ -55,14 +71,10 @@ function HomeContent() {
   const filteredNotes = useMemo(() => {
     let result = [...notes];
 
-    // 장르 필터 (genre 또는 구버전 category 필드 모두 지원)
     if (selectedGenre !== 'all') {
-      result = result.filter(
-        (n) => (n.genre || n.category) === selectedGenre
-      );
+      result = result.filter((n) => (n.genre || n.category) === selectedGenre);
     }
 
-    // 검색어 필터
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       result = result.filter(
@@ -73,7 +85,6 @@ function HomeContent() {
       );
     }
 
-    // 정렬
     result.sort((a, b) => {
       switch (sort) {
         case 'newest': return new Date(b.createdAt) - new Date(a.createdAt);
@@ -88,31 +99,15 @@ function HomeContent() {
     return result;
   }, [notes, selectedGenre, searchQuery, sort]);
 
-  const handleOpenAdd = () => {
-    setEditingNote(null);
-    setModalOpen(true);
-  };
-
-  const handleEdit = (note) => {
-    setEditingNote(note);
-    setModalOpen(true);
-  };
-
+  const handleOpenAdd = () => { setEditingNote(null); setModalOpen(true); };
+  const handleEdit = (note) => { setEditingNote(note); setModalOpen(true); };
   const handleSave = (data) => {
-    if (editingNote?.id) {
-      updateNote(editingNote.id, data);
-    } else {
-      addNote(data);
-    }
+    if (editingNote?.id) updateNote(editingNote.id, data);
+    else addNote(data);
   };
-
   const handleDelete = (id) => setDeleteConfirm(id);
-
   const confirmDelete = () => {
-    if (deleteConfirm) {
-      deleteNote(deleteConfirm);
-      setDeleteConfirm(null);
-    }
+    if (deleteConfirm) { deleteNote(deleteConfirm); setDeleteConfirm(null); }
   };
 
   const avgRating = useMemo(() => {
@@ -121,7 +116,6 @@ function HomeContent() {
     return (rated.reduce((s, n) => s + n.rating, 0) / rated.length).toFixed(1);
   }, [notes]);
 
-  // 로딩 스피너
   if (!loaded) {
     return (
       <div className="flex items-center justify-center min-h-dvh">
@@ -150,6 +144,39 @@ function HomeContent() {
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
+              {/* 내보내기 버튼 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowExport((v) => !v)}
+                  title="데이터 내보내기"
+                  className={`p-2 rounded-xl border transition-colors ${
+                    showExport
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+                      : 'border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-emerald-600 hover:border-emerald-200'
+                  }`}
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+                {showExport && (
+                  <div className="absolute right-0 top-full mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-40">
+                    <button
+                      onClick={() => { exportJSON(); setShowExport(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      <FileJson className="w-4 h-4 text-indigo-500" />
+                      JSON으로 저장
+                    </button>
+                    <button
+                      onClick={() => { exportCSV(); setShowExport(false); }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                    >
+                      <FileText className="w-4 h-4 text-emerald-500" />
+                      CSV로 저장
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* 장르 관리 버튼 */}
               <button
                 onClick={() => setGenreManagerOpen(true)}
@@ -170,75 +197,114 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* 검색 + 정렬 */}
-          <div className="flex gap-2">
-            <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-xl">
-              <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="검색..."
-                className="flex-1 bg-transparent focus:outline-none text-sm text-slate-700 placeholder:text-slate-400 min-w-0"
-              />
+          {/* 검색 + 정렬 (그리드/타임라인 뷰에서만) */}
+          {(viewMode === 'grid' || viewMode === 'timeline') && (
+            <div className="flex gap-2">
+              <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-slate-100 rounded-xl">
+                <Search className="w-4 h-4 text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="검색..."
+                  className="flex-1 bg-transparent focus:outline-none text-sm text-slate-700 placeholder:text-slate-400 min-w-0"
+                />
+              </div>
+              <div className="relative">
+                <button
+                  onClick={() => setShowSort((v) => !v)}
+                  className={`p-2.5 rounded-xl border transition-colors ${
+                    showSort
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                      : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                </button>
+                {showSort && (
+                  <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-40">
+                    {SORT_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => { setSort(opt.value); setShowSort(false); }}
+                        className={`w-full text-left px-4 py-2 text-sm transition-colors ${
+                          sort === opt.value
+                            ? 'text-indigo-600 bg-indigo-50 font-medium'
+                            : 'text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="relative">
-              <button
-                onClick={() => setShowSort((v) => !v)}
-                className={`p-2.5 rounded-xl border transition-colors ${
-                  showSort
-                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
-                    : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'
-                }`}
-              >
-                <SlidersHorizontal className="w-4 h-4" />
-              </button>
-              {showSort && (
-                <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-40">
-                  {SORT_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => { setSort(opt.value); setShowSort(false); }}
-                      className={`w-full text-left px-4 py-2 text-sm transition-colors ${
-                        sort === opt.value
-                          ? 'text-indigo-600 bg-indigo-50 font-medium'
-                          : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* 장르 필터 탭 */}
-        <div className="max-w-3xl mx-auto px-4 pb-3">
-          <CategoryFilter
-            selected={selectedGenre}
-            onSelect={setSelectedGenre}
-            counts={genreCounts}
-          />
+        {/* 뷰 모드 탭 + 장르 필터 (그리드/타임라인) */}
+        <div className="max-w-3xl mx-auto px-4 pb-3 flex flex-col gap-2">
+          {/* 뷰 모드 전환 탭 */}
+          <div className="flex gap-1 p-0.5 bg-slate-100 rounded-xl self-start">
+            {VIEW_MODES.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setViewMode(id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg font-medium transition-all duration-150 ${
+                  viewMode === id
+                    ? 'bg-white text-indigo-600 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* 장르 필터 탭 (그리드/타임라인 뷰에서만) */}
+          {(viewMode === 'grid' || viewMode === 'timeline') && (
+            <CategoryFilter
+              selected={selectedGenre}
+              onSelect={setSelectedGenre}
+              counts={genreCounts}
+            />
+          )}
         </div>
       </header>
 
       {/* ─── 메인 콘텐츠 ──────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-3xl mx-auto w-full px-4 py-6">
-        {filteredNotes.length === 0 ? (
-          <EmptyState filtered={notes.length > 0} />
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {filteredNotes.map((note) => (
-              <NoteCard
-                key={note.id}
-                note={note}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-              />
-            ))}
+      <main className="flex-1 w-full">
+        {viewMode === 'grid' && (
+          <div className="max-w-3xl mx-auto w-full px-4 py-6">
+            {filteredNotes.length === 0 ? (
+              <EmptyState filtered={notes.length > 0} />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {filteredNotes.map((note) => (
+                  <NoteCard
+                    key={note.id}
+                    note={note}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                  />
+                ))}
+              </div>
+            )}
           </div>
+        )}
+
+        {viewMode === 'timeline' && (
+          <TimelineView notes={filteredNotes} />
+        )}
+
+        {viewMode === 'hall' && (
+          <HallOfFame notes={notes} />
+        )}
+
+        {viewMode === 'recs' && (
+          <Recommendations notes={notes} />
         )}
       </main>
 

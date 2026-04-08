@@ -3,16 +3,14 @@
 // components/AddEditModal.jsx
 // 노트 추가·편집 모달 컴포넌트.
 //
-// 주요 변경 사항:
-// ① 정적 CATEGORIES 대신 useGenres() 동적 장르 사용
-// ② '카테고리' → '장르' 레이블 변경
-// ③ 노트 데이터에 genre 필드 사용 (구버전 category 필드 하위 호환 유지)
-// ④ evalItems를 노트 자체에 저장 → 세부 평가 항목을 노트별로 추가·삭제·이름 수정 가능
-// ⑤ 라이브 프리뷰가 evalItems 변경에 즉시 반응하도록 수정
-// ⑥ UI 레이아웃 개선 (겹침 방지, 모바일 대응)
+// 변경 사항:
+// ① 슬라이더 정렬 CSS Grid 적용 → 라벨·슬라이더·값이 완벽하게 정렬됨
+// ② 포스터 이미지 검색 패널 추가 (PosterSearch 컴포넌트 통합)
+// ③ note.posterUrl 필드 저장 지원
 // ──────────────────────────────────────────────────────────────────────────────
 import { useState, useEffect, useMemo } from 'react';
-import { X, Tag, Plus, BarChart2, Hexagon, Pencil, Trash2 } from 'lucide-react';
+import { X, Tag, Plus, BarChart2, Hexagon, Pencil, Trash2, Image, Crown } from 'lucide-react';
+import { PosterSearch } from './PosterSearch';
 import { useGenres } from '@/hooks/useGenres';
 import { StarRating } from './StarRating';
 import { ScoreVisualization } from './ScoreVisualization';
@@ -20,14 +18,16 @@ import { ScoreVisualization } from './ScoreVisualization';
 // 기본 폼 상태 (장르 ID 자리는 아래에서 동적으로 채움)
 const makeDefaultForm = (firstGenreId) => ({
   title: '',
-  genre: firstGenreId,   // ← 신규 필드 (구버전 category 대신)
+  genre: firstGenreId,
   rating: 0,
   date: new Date().toISOString().split('T')[0],
   memo: '',
   tags: [],
   scores: {},
   vizType: 'radar',
-  evalItems: null,       // null → 장르 기본값 사용, string[] → 노트별 커스텀
+  evalItems: null,
+  posterUrl: null,
+  masterpiece: false,
 });
 
 // ─── 세부 평가 항목 편집 행 ────────────────────────────────────────────────────
@@ -104,8 +104,9 @@ export function AddEditModal({ note, onSave, onClose }) {
 
   const [form, setForm] = useState(makeDefaultForm(firstGenreId));
   const [tagInput, setTagInput] = useState('');
-  const [newItemInput, setNewItemInput] = useState(''); // 세부 평가 항목 추가 입력
-  const [showItemEdit, setShowItemEdit] = useState(false); // 항목 편집 패널 토글
+  const [newItemInput, setNewItemInput] = useState('');
+  const [showItemEdit, setShowItemEdit] = useState(false);
+  const [showPosterSearch, setShowPosterSearch] = useState(false);
 
   // note prop이 바뀔 때 폼 초기화
   useEffect(() => {
@@ -122,8 +123,9 @@ export function AddEditModal({ note, onSave, onClose }) {
         tags: note.tags || [],
         scores: note.scores || {},
         vizType: note.vizType || 'radar',
-        // evalItems: 노트에 저장된 항목이 있으면 사용, 없으면 장르 기본값
         evalItems: note.evalItems || [...(genre.defaultItems || [])],
+        posterUrl: note.posterUrl || null,
+        masterpiece: note.masterpiece || false,
       });
     } else {
       const defaultGenre = getGenreById(firstGenreId);
@@ -278,6 +280,60 @@ export function AddEditModal({ note, onSave, onClose }) {
             />
           </div>
 
+          {/* ── 포스터 이미지 ───────────────────────────────────────── */}
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium text-slate-700">포스터 이미지</label>
+              <button
+                type="button"
+                onClick={() => setShowPosterSearch((v) => !v)}
+                className={`flex items-center gap-1 px-2.5 py-1 text-xs rounded-full border transition-colors ${
+                  showPosterSearch
+                    ? 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                }`}
+              >
+                <Image className="w-3 h-3" />
+                {form.posterUrl ? '변경' : '검색'}
+              </button>
+            </div>
+
+            {/* 현재 선택된 포스터 미리보기 */}
+            {form.posterUrl && !showPosterSearch && (
+              <div className="flex items-center gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100">
+                <img
+                  src={form.posterUrl}
+                  alt="포스터"
+                  className="w-12 h-16 object-cover rounded-lg shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs text-slate-500 truncate">{form.posterUrl}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => set('posterUrl', null)}
+                  className="p-1 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-500 transition-colors shrink-0"
+                  aria-label="포스터 제거"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* 포스터 검색 패널 */}
+            {showPosterSearch && (
+              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                <PosterSearch
+                  genreId={form.genre}
+                  title={form.title}
+                  currentUrl={form.posterUrl}
+                  onSelect={(url) => set('posterUrl', url)}
+                  onClose={() => setShowPosterSearch(false)}
+                />
+              </div>
+            )}
+          </div>
+
           {/* ── 장르 선택 (구 '카테고리') ─────────────────────────────── */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">장르</label>
@@ -312,6 +368,29 @@ export function AddEditModal({ note, onSave, onClose }) {
               )}
             </label>
             <StarRating value={form.rating} onChange={(v) => set('rating', v)} size="lg" />
+          </div>
+
+          {/* ── 명작 표시 ───────────────────────────────────────────────── */}
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer select-none">
+              <Crown className="w-4 h-4 text-yellow-500" />
+              명작 등록
+              <span className="text-xs text-slate-400 font-normal">명예의 전당에 등록</span>
+            </label>
+            <button
+              type="button"
+              onClick={() => set('masterpiece', !form.masterpiece)}
+              className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+                form.masterpiece ? 'bg-yellow-400' : 'bg-slate-200'
+              }`}
+              aria-label="명작 토글"
+            >
+              <span
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                  form.masterpiece ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
           </div>
 
           {/* ── 세부 평가 ───────────────────────────────────────────────── */}
@@ -431,17 +510,24 @@ export function AddEditModal({ note, onSave, onClose }) {
               </div>
             )}
 
-            {/* 점수 슬라이더 */}
-            <div className="flex flex-col gap-3">
+            {/* 점수 슬라이더 — CSS Grid로 완벽 정렬 */}
+            <div className="flex flex-col gap-2.5">
               {evalItems.map((item) => {
                 const score = form.scores?.[item] ?? 0;
                 return (
-                  <div key={item} className="flex items-center gap-3">
-                    {/* 항목 이름 (고정 너비) */}
-                    <span className="text-xs text-slate-600 w-14 shrink-0 text-right truncate" title={item}>
+                  <div
+                    key={item}
+                    className="grid items-center gap-3"
+                    style={{ gridTemplateColumns: '5rem 1fr 1.75rem' }}
+                  >
+                    {/* 항목 이름 — 오른쪽 정렬, 고정 너비 */}
+                    <span
+                      className="text-xs text-slate-600 text-right truncate leading-none"
+                      title={item}
+                    >
                       {item}
                     </span>
-                    {/* 슬라이더 */}
+                    {/* 슬라이더 — 나머지 공간 전부 */}
                     <input
                       type="range"
                       min="0"
@@ -449,12 +535,12 @@ export function AddEditModal({ note, onSave, onClose }) {
                       step="1"
                       value={score}
                       onChange={(e) => setScore(item, e.target.value)}
-                      className="flex-1 h-1.5 rounded-full appearance-none cursor-pointer"
+                      className="w-full h-1.5 rounded-full appearance-none cursor-pointer block"
                       style={{ accentColor: currentGenre.chartColor }}
                     />
-                    {/* 점수 표시 */}
+                    {/* 점수 — 고정 너비, 오른쪽 정렬 */}
                     <span
-                      className="text-sm font-bold w-6 text-right tabular-nums shrink-0"
+                      className="text-sm font-bold text-right tabular-nums leading-none"
                       style={{ color: score > 0 ? currentGenre.chartColor : '#94a3b8' }}
                     >
                       {score}
