@@ -2,7 +2,11 @@ name: GitHub Pages 배포
 
 on:
   push:
-    branches: [main, claude/multi-rating-notes-app-XuRPi, claude/fix-icon-change-fn61Y]
+    branches:
+      - main
+      - claude/multi-rating-notes-app-XuRPi
+      - claude/fix-icon-change-fn61Y
+      - claude/fix-nextjs-cache-staleness-I5hee
   workflow_dispatch:
 
 permissions:
@@ -17,6 +21,11 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # 어떤 스텝이라도 실패하면 즉시 워크플로우 중단 (기본값이지만 명시)
+    defaults:
+      run:
+        shell: bash -euo pipefail {0}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -25,14 +34,60 @@ jobs:
           node-version: 20
           cache: npm
 
+      # ── 의존성 클린 설치 ────────────────────────────────────────────────────
       - name: 패키지 설치
         run: npm ci
 
+      # ── 빌드 ID 생성 및 SW에 주입 ───────────────────────────────────────────
+      # public/sw.js의 BUILD_ID_PLACEHOLDER를 "SHA7자리-타임스탬프"로 교체.
+      # SW 파일 내용이 바뀌므로 브라우저가 새 SW를 감지해 캐시를 자동 갱신.
+      - name: 빌드 ID 생성 및 SW 주입
+        run: |
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          BUILD_TS="$(date -u +%Y%m%d%H%M%S)"
+          BUILD_ID="${SHORT_SHA}-${BUILD_TS}"
+          echo "BUILD_ID=${BUILD_ID}" >> "$GITHUB_ENV"
+          sed -i "s/BUILD_ID_PLACEHOLDER/${BUILD_ID}/g" public/sw.js
+          echo "✅ SW BUILD_ID 주입 완료: ${BUILD_ID}"
+          # 주입 결과 검증 (PLACEHOLDER가 남아있으면 실패)
+          if grep -q "BUILD_ID_PLACEHOLDER" public/sw.js; then
+            echo "❌ BUILD_ID 주입 실패 – PLACEHOLDER가 sw.js에 남아있습니다" >&2
+            exit 1
+          fi
+
+      # ── 프로덕션 빌드 ────────────────────────────────────────────────────────
       - name: 빌드
         run: npm run build
         env:
           NEXT_PUBLIC_BASE_PATH: /multi-eval-note
+          NEXT_PUBLIC_BUILD_ID: ${{ env.BUILD_ID }}
+          BUILD_ID: ${{ env.BUILD_ID }}
 
+      # ── 빌드 산출물 검증 ─────────────────────────────────────────────────────
+      - name: 빌드 결과 검증
+        run: |
+          if [ ! -d "out" ]; then
+            echo "❌ out/ 디렉터리가 없습니다 – 빌드가 실패한 것 같습니다" >&2
+            exit 1
+          fi
+          if [ ! -f "out/index.html" ]; then
+            echo "❌ out/index.html 이 없습니다" >&2
+            exit 1
+          fi
+          if [ ! -f "out/sw.js" ]; then
+            echo "❌ out/sw.js 가 없습니다" >&2
+            exit 1
+          fi
+          # SW에 빌드 ID가 올바르게 포함됐는지 확인
+          if ! grep -q "$BUILD_ID" out/sw.js; then
+            echo "❌ out/sw.js에 BUILD_ID(${BUILD_ID})가 없습니다" >&2
+            exit 1
+          fi
+          echo "✅ 빌드 검증 통과 – BUILD_ID: ${BUILD_ID}"
+          echo "📦 산출물 크기:"
+          du -sh out/
+
+      # ── GitHub Pages 업로드 ──────────────────────────────────────────────────
       - name: 정적 파일 업로드
         uses: actions/upload-pages-artifact@v3
         with:
