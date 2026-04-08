@@ -1,6 +1,9 @@
 import './globals.css';
+import { ServiceWorkerUpdater } from '@/components/ServiceWorkerUpdater';
+import { VersionWatermark } from '@/components/VersionWatermark';
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
+const buildId = process.env.NEXT_PUBLIC_BUILD_ID || 'dev';
 
 export const metadata = {
   title: '멀티 평가 노트',
@@ -29,17 +32,10 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         {children}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('${process.env.NEXT_PUBLIC_BASE_PATH || ''}/sw.js');
-                });
-              }
-            `,
-          }}
-        />
+        {/* SW 등록 + 새 버전 감지 배너 */}
+        <ServiceWorkerUpdater swPath={`${basePath}/sw.js`} />
+        {/* 빌드 ID 워터마크 (하단 좌측, 클릭 시 SW 버전 대조) */}
+        <VersionWatermark buildId={buildId} />
       </body>
     </html>
   );
