@@ -19,13 +19,22 @@
 import { useState, useEffect } from 'react';
 import { Search, X, ExternalLink, ImageOff, Link } from 'lucide-react';
 
+// 장르 ID 또는 라벨 기준으로 애니 장르 여부를 판별합니다.
+// 사용자가 커스텀 장르를 추가하면 ID가 'genre-{timestamp}-...' 형태로 생성되므로,
+// 라벨(label) 텍스트를 보조 기준으로 사용합니다.
+function isAnimeGenre(genreId, genreLabel = '') {
+  if (genreId === 'anime') return true;
+  const label = genreLabel.toLowerCase();
+  return label.includes('애니') || label.includes('anime') || label.includes('animation');
+}
+
 // 장르별 검색 API 라우터
-async function searchPosters(genreId, query) {
+async function searchPosters(genreId, query, genreLabel = '') {
   const q = encodeURIComponent(query.trim());
   if (!q) return [];
 
   // 애니메이션 → Jikan API (MyAnimeList)
-  if (genreId === 'anime') {
+  if (isAnimeGenre(genreId, genreLabel)) {
     try {
       const res = await fetch(
         `https://api.jikan.moe/v4/anime?q=${q}&limit=8&sfw=true`
@@ -90,7 +99,7 @@ async function searchPosters(genreId, query) {
   return [];
 }
 
-export function PosterSearch({ genreId, title, currentUrl, onSelect, onClose }) {
+export function PosterSearch({ genreId, genreLabel = '', title, currentUrl, onSelect, onClose }) {
   const [query, setQuery] = useState(title || '');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -107,7 +116,7 @@ export function PosterSearch({ genreId, title, currentUrl, onSelect, onClose }) 
     if (!query.trim()) return;
     setLoading(true);
     setNoKeyWarning(false);
-    const data = await searchPosters(genreId, query);
+    const data = await searchPosters(genreId, query, genreLabel);
     setLoading(false);
     if (data === null) {
       setNoKeyWarning(true);
@@ -130,7 +139,7 @@ export function PosterSearch({ genreId, title, currentUrl, onSelect, onClose }) 
   };
 
   const unsupportedGenre =
-    !['anime', 'book', 'movie', 'game'].includes(genreId);
+    !isAnimeGenre(genreId, genreLabel) && !['book', 'movie', 'game'].includes(genreId);
 
   return (
     <div className="flex flex-col gap-3">

@@ -325,6 +325,7 @@ export function AddEditModal({ note, onSave, onClose }) {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
                 <PosterSearch
                   genreId={form.genre}
+                  genreLabel={getGenreById(form.genre)?.label || ''}
                   title={form.title}
                   currentUrl={form.posterUrl}
                   onSelect={(url) => set('posterUrl', url)}
@@ -380,7 +381,7 @@ export function AddEditModal({ note, onSave, onClose }) {
             <button
               type="button"
               onClick={() => set('masterpiece', !form.masterpiece)}
-              className={`relative w-10 h-6 rounded-full transition-colors duration-200 ${
+              className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
                 form.masterpiece ? 'bg-yellow-400' : 'bg-slate-200'
               }`}
               aria-label="명작 토글"
