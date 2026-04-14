@@ -372,22 +372,27 @@ export function AddEditModal({ note, onSave, onClose }) {
           </div>
 
           {/* ── 명작 표시 ───────────────────────────────────────────────── */}
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer select-none">
+          <div
+            className="flex items-center justify-between cursor-pointer select-none"
+            onClick={() => set('masterpiece', !form.masterpiece)}
+          >
+            <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
               <Crown className="w-4 h-4 text-yellow-500" />
               명작 등록
               <span className="text-xs text-slate-400 font-normal">명예의 전당에 등록</span>
-            </label>
+            </span>
             <button
               type="button"
-              onClick={() => set('masterpiece', !form.masterpiece)}
-              className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 ${
+              onClick={(e) => { e.stopPropagation(); set('masterpiece', !form.masterpiece); }}
+              role="switch"
+              aria-checked={form.masterpiece}
+              className={`relative shrink-0 w-10 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-400 focus:ring-offset-1 ${
                 form.masterpiece ? 'bg-yellow-400' : 'bg-slate-200'
               }`}
               aria-label="명작 토글"
             >
               <span
-                className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${
+                className={`absolute top-1 left-0 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
                   form.masterpiece ? 'translate-x-5' : 'translate-x-1'
                 }`}
               />
