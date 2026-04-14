@@ -123,6 +123,10 @@ export const DEFAULT_GENRES = [
     defaultItems: ['재미', '그래픽', '스토리', '중독성'],
   },
   {
+    id: 'anime', label: '애니', emoji: '🎌', ...COLOR_PRESETS[8],
+    defaultItems: ['스토리', '작화', '음악', '캐릭터'],
+  },
+  {
     id: 'music', label: '음악', emoji: '🎵', ...COLOR_PRESETS[5],
     defaultItems: ['멜로디', '가사', '편곡', '감동'],
   },
